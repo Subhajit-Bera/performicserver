@@ -1,7 +1,7 @@
 {
   "name": "performic-backend",
   "version": "1.0.0",
-  "description": "API for EduElevate Platform",
+  "description": "API for performic platform",
   "main": "server.mjs",
   "type": "module",
   "scripts": {
