@@ -12,6 +12,7 @@
     "dev": "nodemon server.mjs",
     "migrate": "node scripts/migrate.mjs",
     "seed": "node scripts/seed.mjs",
+    "verify:db": "node scripts/verify.mjs",
     "test": "node --test --test-concurrency=1 --import ./tests/setup.mjs \"tests/*.test.mjs\"",
     "test:watch": "node --test --watch --test-concurrency=1 --import ./tests/setup.mjs \"tests/*.test.mjs\""
   },
