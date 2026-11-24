@@ -27,7 +27,8 @@ export const verifyAccessToken = (token) =>
 export const refreshCookieOptions = () => ({
     httpOnly: true,
     secure: isProduction,
-    sameSite: 'strict',
+    sameSite: isProduction ? 'none' : 'lax',
+    partitioned: isProduction,
     path: '/api/auth',
     maxAge: config.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
 });
@@ -85,7 +86,8 @@ export const issueOauthStateCookie = (res, state) => {
     res.cookie(OAUTH_STATE_COOKIE_NAME, state, {
         httpOnly: true,
         secure: isProduction,
-        sameSite: 'lax',
+        sameSite: isProduction ? 'none' : 'lax',
+        partitioned: isProduction,
         path: '/api/auth',
         maxAge: 10 * 60 * 1000,
     });
@@ -95,7 +97,8 @@ export const clearOauthStateCookie = (res) => {
     res.clearCookie(OAUTH_STATE_COOKIE_NAME, {
         httpOnly: true,
         secure: isProduction,
-        sameSite: 'lax',
+        sameSite: isProduction ? 'none' : 'lax',
+        partitioned: isProduction,
         path: '/api/auth',
     });
 };
