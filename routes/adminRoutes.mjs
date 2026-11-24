@@ -1,88 +1,111 @@
-// import { Router } from 'express';
-// import { getDashboardStats } from '../controllers/adminController.mjs';
-// import { authMiddleware, adminMiddleware } from '../middleware/authMiddleware.mjs';
-
-// const router = Router();
-
-// // All routes in this file are protected by auth and admin middleware
-// router.use(authMiddleware, adminMiddleware);
-
-// router.get('/dashboard-stats', getDashboardStats);
-
-// export default router;
-
-
 import { Router } from 'express';
 import { authMiddleware, adminMiddleware } from '../middleware/authMiddleware.mjs';
+import { writeLimiter, searchLimiter } from '../middleware/rateLimiters.mjs';
+import { validate } from '../utils/validate.mjs';
+import { idParamSchema } from '../schemas/authSchemas.mjs';
+import {
+    universityPayloadSchema,
+    examPayloadSchema,
+    coursePayloadSchema,
+    partnerPayloadSchema,
+    streamPayloadSchema,
+    streamCoursesSchema,
+    applicationUpdateSchema,
+    appointmentStatusSchema,
+    referralStatusSchema,
+    roleSchema,
+} from '../schemas/catalogSchemas.mjs';
+
 import { getDashboardStats } from '../controllers/adminController.mjs';
-import { createUniversity, deleteUniversity, getAllUniversitiesAdmin, updateUniversity,getUniversityByIdAdmin } from '../controllers/adminUniversityController.mjs';
-import { createExam, deleteExam, getAllExamsAdmin, updateExam,getExamByIdAdmin } from '../controllers/adminExamController.mjs';
-import { createStream, deleteStream, getAllStreams, updateStream } from '../controllers/adminStreamController.mjs';
-import { createCourse, deleteCourse, getAllCoursesAdmin, updateCourse } from '../controllers/adminCourseController.mjs';
-import { createPartner, deletePartner, getAllPartnersAdmin, updatePartner } from '../controllers/adminPartnerController.mjs';
-import { getAllUsers, updateUserRole, getAllAgents, getAgentDetails, updateReferralStatus } from '../controllers/adminUserController.mjs';
-import { getAllAppointments, updateAppointmentStatus } from '../controllers/adminAppointmentController.mjs';
-import { getAllApplications, updateApplication } from '../controllers/adminApplicationController.mjs';
-import { updateStreamCourses, getCoursesByStreams } from '../controllers/adminStreamController.mjs';
+import {
+    createUniversity, deleteUniversity, getAllUniversitiesAdmin, updateUniversity, getUniversityByIdAdmin,
+} from '../controllers/adminUniversityController.mjs';
+import {
+    createExam, deleteExam, getAllExamsAdmin, updateExam, getExamByIdAdmin,
+} from '../controllers/adminExamController.mjs';
+import {
+    createStream, deleteStream, getAllStreams, updateStream, updateStreamCourses,
+} from '../controllers/adminStreamController.mjs';
+import { getCoursesByStreams } from '../controllers/courseController.mjs';
+import {
+    createCourse, deleteCourse, getAllCoursesAdmin, updateCourse, getCourseByIdAdmin,
+} from '../controllers/adminCourseController.mjs';
+import {
+    createPartner, deletePartner, getAllPartnersAdmin, updatePartner, getPartnerByIdAdmin,
+} from '../controllers/adminPartnerController.mjs';
+import {
+    getAllUsers, updateUserRole, getAllAgents, getAgentDetails, updateReferralStatus,
+} from '../controllers/adminUserController.mjs';
+import {
+    getAllAppointments, updateAppointmentStatus, getAppointmentHistory,
+} from '../controllers/adminAppointmentController.mjs';
+import {
+    getAllApplications, updateApplication, getApplicationHistory,
+} from '../controllers/adminApplicationController.mjs';
+import { listContactMessages, markContactMessageHandled } from '../controllers/contactController.mjs';
 
 const router = Router();
-router.use(authMiddleware, adminMiddleware); // Protect all admin routes
+router.use(authMiddleware, adminMiddleware);
 
-// Dashboard
 router.get('/dashboard-stats', getDashboardStats);
 
-// University Management
+// University management
 router.get('/universities', getAllUniversitiesAdmin);
-router.post('/universities', createUniversity);
-router.get('/universities/:id', getUniversityByIdAdmin);
-router.put('/universities/:id', updateUniversity);
-router.delete('/universities/:id', deleteUniversity);
+router.post('/universities', writeLimiter, validate({ body: universityPayloadSchema }), createUniversity);
+router.get('/universities/:id', validate({ params: idParamSchema }), getUniversityByIdAdmin);
+router.put('/universities/:id', writeLimiter, validate({ params: idParamSchema, body: universityPayloadSchema }), updateUniversity);
+router.delete('/universities/:id', writeLimiter, validate({ params: idParamSchema }), deleteUniversity);
 
-// Exam Management
+// Exam management
 router.get('/exams', getAllExamsAdmin);
-router.post('/exams', createExam);
-router.get('/exams/:id', getExamByIdAdmin);
-router.put('/exams/:id', updateExam);
-router.delete('/exams/:id', deleteExam);
+router.post('/exams', writeLimiter, validate({ body: examPayloadSchema }), createExam);
+router.get('/exams/:id', validate({ params: idParamSchema }), getExamByIdAdmin);
+router.put('/exams/:id', writeLimiter, validate({ params: idParamSchema, body: examPayloadSchema }), updateExam);
+router.delete('/exams/:id', writeLimiter, validate({ params: idParamSchema }), deleteExam);
 
-// Stream Management
+// Stream management
 router.get('/streams', getAllStreams);
-router.post('/streams', createStream);
-router.put('/streams/:id', updateStream);
-router.delete('/streams/:id', deleteStream);
+router.post('/streams', writeLimiter, validate({ body: streamPayloadSchema }), createStream);
+router.put('/streams/:id', writeLimiter, validate({ params: idParamSchema, body: streamPayloadSchema }), updateStream);
+router.delete('/streams/:id', writeLimiter, validate({ params: idParamSchema }), deleteStream);
+router.put('/streams/:id/courses', writeLimiter, validate({ params: idParamSchema, body: streamCoursesSchema }), updateStreamCourses);
+router.get('/courses-by-streams', searchLimiter, getCoursesByStreams);
 
-// NEW routes for managing stream-course relationships
-router.put('/streams/:id/courses', updateStreamCourses);
-router.get('/courses-by-streams', getCoursesByStreams); // For the dynamic dropdown in Uni form
-
-// Course Management
+// Course management
 router.get('/courses', getAllCoursesAdmin);
-router.post('/courses', createCourse);
-router.put('/courses/:id', updateCourse);
-router.delete('/courses/:id', deleteCourse);
+router.post('/courses', writeLimiter, validate({ body: coursePayloadSchema }), createCourse);
+router.get('/courses/:id', validate({ params: idParamSchema }), getCourseByIdAdmin);
+router.put('/courses/:id', writeLimiter, validate({ params: idParamSchema, body: coursePayloadSchema }), updateCourse);
+router.delete('/courses/:id', writeLimiter, validate({ params: idParamSchema }), deleteCourse);
 
-// Partner Management
+// Partner management
 router.get('/partners', getAllPartnersAdmin);
-router.post('/partners', createPartner);
-router.put('/partners/:id', updatePartner);
-router.delete('/partners/:id', deletePartner);
+router.post('/partners', writeLimiter, validate({ body: partnerPayloadSchema }), createPartner);
+router.get('/partners/:id', validate({ params: idParamSchema }), getPartnerByIdAdmin);
+router.put('/partners/:id', writeLimiter, validate({ params: idParamSchema, body: partnerPayloadSchema }), updatePartner);
+router.delete('/partners/:id', writeLimiter, validate({ params: idParamSchema }), deletePartner);
 
+// User management
+router.get('/users', searchLimiter, getAllUsers);
+router.put('/users/:id/role', writeLimiter, validate({ params: idParamSchema, body: roleSchema }), updateUserRole);
 
-// User Management
-router.get('/users', getAllUsers);
-router.put('/users/:id/role', updateUserRole);
+// Appointment management
+router.get('/appointments', searchLimiter, getAllAppointments);
+router.get('/appointments/:id/history', validate({ params: idParamSchema }), getAppointmentHistory);
+router.put('/appointments/:id/status', writeLimiter, validate({ params: idParamSchema, body: appointmentStatusSchema }), updateAppointmentStatus);
 
-// Appointment Management
-router.get('/appointments', getAllAppointments);
-router.put('/appointments/:id/status', updateAppointmentStatus);
+// Application management
+router.get('/applications', searchLimiter, getAllApplications);
+router.get('/applications/:id/history', validate({ params: idParamSchema }), getApplicationHistory);
+router.put('/applications/:id', writeLimiter, validate({ params: idParamSchema, body: applicationUpdateSchema }), updateApplication);
 
-// Application Management
-router.get('/applications', getAllApplications);
-router.put('/applications/:id', updateApplication);
+// Agent management
+router.get('/agents', searchLimiter, getAllAgents);
+router.get('/agents/:id', validate({ params: idParamSchema }), getAgentDetails);
+router.put('/referrals/:referralId/status', writeLimiter, validate({ body: referralStatusSchema }), updateReferralStatus);
 
-// Agent Management
-router.get('/agents', getAllAgents);
-router.get('/agents/:id', getAgentDetails);
-router.put('/referrals/:referralId/status', updateReferralStatus);
+// Contact inbox
+router.get('/contact-messages', searchLimiter, listContactMessages);
+router.put('/contact-messages/:id/handled', writeLimiter, markContactMessageHandled);
 
 export default router;

@@ -1,401 +1,221 @@
-// import pool from '../config/db.mjs';
-// import { slugify } from '../utils/slugify.mjs';
-
-// export const getAllUniversitiesAdmin = async (req, res) => {
-//     try {
-//         const result = await pool.query('SELECT u.id, u.name, u.slug, u.location, s.name as stream_name FROM universities u LEFT JOIN streams s ON u.stream_id = s.id ORDER BY u.name');
-//         res.json(result.rows);
-//     } catch (err) {
-//         res.status(500).json({ message: "Error fetching universities" });
-//     }
-// };
-
-// export const createUniversity = async (req, res) => {
-//     const { name, location, stream_id, rating, description, image_url, details, courses_and_fees, placements, facilities } = req.body;
-//     const slug = slugify(name);
-//     try {
-//         const result = await pool.query(
-//             `INSERT INTO universities (name, slug, location, stream_id, rating, description, image_url, details, courses_and_fees, placements, facilities)
-//              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-//             [name, slug, location, stream_id, rating, description, image_url, details, courses_and_fees, placements, facilities]
-//         );
-//         res.status(201).json(result.rows[0]);
-//     } catch (err) {
-//         if (err.code === '23505') return res.status(409).json({ message: "A university with this name or slug already exists." });
-//         res.status(500).json({ message: "Error creating university" });
-//     }
-// };
-
-// export const updateUniversity = async (req, res) => {
-//     const { id } = req.params;
-//     const { name, location, stream_id, rating, description, image_url, details, courses_and_fees, placements, facilities } = req.body;
-//     const slug = slugify(name);
-//     try {
-//         const result = await pool.query(
-//             `UPDATE universities SET name=$1, slug=$2, location=$3, stream_id=$4, rating=$5, description=$6, image_url=$7, details=$8, courses_and_fees=$9, placements=$10, facilities=$11
-//              WHERE id=$12 RETURNING *`,
-//             [name, slug, location, stream_id, rating, description, image_url, details, courses_and_fees, placements, facilities, id]
-//         );
-//         if(result.rows.length === 0) return res.status(404).json({ message: "University not found" });
-//         res.json(result.rows[0]);
-//     } catch (err) {
-//         if (err.code === '23505') return res.status(409).json({ message: "A university with this name or slug already exists." });
-//         res.status(500).json({ message: "Error updating university" });
-//     }
-// };
-
-// export const deleteUniversity = async (req, res) => {
-//     const { id } = req.params;
-//     try {
-//         const result = await pool.query('DELETE FROM universities WHERE id=$1', [id]);
-//         if (result.rowCount === 0) return res.status(404).json({ message: "University not found" });
-//         res.status(204).send();
-//     } catch (err) {
-//         res.status(500).json({ message: "Error deleting university" });
-//     }
-// };
-
-
-
-import pool from '../config/db.mjs';
+import pool, { withTransaction } from '../config/db.mjs';
+import { ApiError } from '../utils/ApiError.mjs';
+import { asyncHandler } from '../utils/asyncHandler.mjs';
+import { paginated, parsePagination, parseId, parseIdList } from '../utils/http.mjs';
 import { slugify } from '../utils/slugify.mjs';
 
-// Get all universities for admin list view
-// export const getAllUniversitiesAdmin = async (req, res) => {
-//     try {
-//         const result = await pool.query('SELECT u.id, u.name, u.slug, u.location, s.name as stream_name FROM universities u LEFT JOIN streams s ON u.stream_id = s.id ORDER BY u.name');
-//         res.json(result.rows);
-//     } catch (err) {
-//         console.error("Error fetching universities for admin:", err);
-//         res.status(500).json({ message: "Error fetching universities" });
-//     }
-// };
+const jsonb = (value, fallback) => JSON.stringify(value ?? fallback);
 
-// Create a new university (UPDATED LOGIC)
-// export const createUniversity = async (req, res) => {
-//     const {
-//         name, location, stream_id, rating, description, image_url,
-//         details = {},
-//         courses_and_fees = [],
-//         placements = {},
-//         facilities = []
-//     } = req.body;
-
-//     const slug = slugify(name);
-
-//     try {
-//         const result = await pool.query(
-//             `INSERT INTO universities (name, slug, location, stream_id, rating, description, image_url, details, courses_and_fees, placements, facilities)
-//              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-//             [
-//                 name, slug, location, stream_id, rating, description, image_url,
-//                 // THE FIX: Manually stringify all JSONB fields
-//                 JSON.stringify(details),
-//                 JSON.stringify(courses_and_fees),
-//                 JSON.stringify(placements),
-//                 facilities // TEXT[] arrays are handled correctly by the driver
-//             ]
-//         );
-//         res.status(201).json(result.rows[0]);
-//     } catch (err) {
-//         console.error("Error creating university in database:", err);
-//         if (err.code === '23505') {
-//             return res.status(409).json({ message: "A university with this name already exists." });
-//         }
-//         res.status(500).json({ message: "Error creating university", error: err.message });
-//     }
-// };
-
-
-
-export const getAllUniversitiesAdmin = async (req, res) => {
-    try {
-        const result = await pool.query(`
-            SELECT 
-                u.id, 
-                u.name, 
-                u.slug, 
-                u.location, 
-                -- Aggregate all stream names associated with the university into a single string
-                STRING_AGG(s.name, ', ') as stream_name 
-            FROM 
-                universities u 
-            LEFT JOIN 
-                university_streams us ON u.id = us.university_id 
-            LEFT JOIN 
-                streams s ON us.stream_id = s.id 
-            GROUP BY 
-                u.id 
-            ORDER BY 
-                u.name
-        `);
-        res.json(result.rows);
-    } catch (err) {
-        console.error("Error fetching universities for admin:", err);
-        res.status(500).json({ message: "Error fetching universities" });
-    }
-};
-
-// Get a single university by ID for the admin edit form
-// export const getUniversityByIdAdmin = async (req, res) => {
-//     const { id } = req.params;
-//     try {
-//         // First, get the main university data
-//         const universityResult = await pool.query('SELECT * FROM universities WHERE id = $1', [id]);
-//         if (universityResult.rows.length === 0) {
-//             return res.status(404).json({ message: "University not found" });
-//         }
-//         const university = universityResult.rows[0];
-
-//         // Next, get the associated stream IDs
-//         const streamsResult = await pool.query('SELECT stream_id FROM university_streams WHERE university_id = $1', [id]);
-//         university.stream_ids = streamsResult.rows.map(row => row.stream_id);
-
-//         res.json(university);
-//     } catch (err) {
-//         console.error(`Error fetching university with ID ${id}:`, err);
-//         res.status(500).json({ message: "Server error while fetching university details" });
-//     }
-// };
-
-export const getUniversityByIdAdmin = async (req, res) => {
-    const { id } = req.params;
-    try {
-        const universityResult = await pool.query('SELECT * FROM universities WHERE id = $1', [id]);
-        if (universityResult.rows.length === 0) return res.status(404).json({ message: "University not found" });
-
-        const university = universityResult.rows[0];
-
-        const streamsResult = await pool.query('SELECT stream_id FROM university_streams WHERE university_id = $1', [id]);
-        university.stream_ids = streamsResult.rows.map(row => row.stream_id);
-
-        const topStreamsResult = await pool.query('SELECT stream_id FROM top_university_streams WHERE university_id = $1', [id]);
-        university.top_stream_ids = topStreamsResult.rows.map(row => row.stream_id);
-
-        res.json(university);
-    } catch (err) {
-        res.status(500).json({ message: "Server error while fetching university details" });
-    }
-};
-
-
-
-
-
-
-
-// export const createUniversity = async (req, res) => {
-//     const { stream_ids = [], admission_open = false, admission_year, ...uniData } = req.body;
-//     const slug = slugify(uniData.name);
-//     const client = await pool.connect();
-
-//     try {
-//         await client.query('BEGIN');
-
-//         const uniResult = await client.query(
-//             `INSERT INTO universities (name, slug, location, rating, description, image_url, details, courses_and_fees, placements, facilities, admission_open, admission_year)
-//              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
-//             [uniData.name, slug, uniData.location, uniData.rating, uniData.description, uniData.image_url, JSON.stringify(uniData.details), JSON.stringify(uniData.courses_and_fees), JSON.stringify(uniData.placements), uniData.facilities, admission_open, admission_year]
-//         );
-//         const universityId = uniResult.rows[0].id;
-
-//         if (stream_ids && stream_ids.length > 0) {
-//             const streamValues = stream_ids.map(streamId => `(${universityId}, ${streamId})`).join(',');
-//             await client.query(`INSERT INTO university_streams (university_id, stream_id) VALUES ${streamValues}`);
-//         }
-
-//         await client.query('COMMIT');
-//         res.status(201).json({ id: universityId });
-//     } catch (err) {
-//         await client.query('ROLLBACK');
-//         console.error("Error creating university in database:", err);
-//         if (err.code === '23505') return res.status(409).json({ message: "A university with this name already exists." });
-//         res.status(500).json({ message: "Error creating university" });
-//     } finally {
-//         client.release();
-//     }
-// };
-
-
-
-export const createUniversity = async (req, res) => {
-    const { stream_ids = [], is_top_university = false, top_stream_ids = [], ...uniData } = req.body;
-    const slug = slugify(uniData.name);
-    const client = await pool.connect();
-    try {
-        await client.query('BEGIN');
-        const uniResult = await client.query(
-            `INSERT INTO universities (name, slug, location, rating, description, image_url, details, courses_and_fees, placements, facilities, admission_open, admission_year, is_top_university)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
-            [uniData.name, slug, uniData.location, uniData.rating, uniData.description, uniData.image_url, JSON.stringify(uniData.details), JSON.stringify(uniData.courses_and_fees), JSON.stringify(uniData.placements), uniData.facilities, uniData.admission_open, uniData.admission_year, is_top_university]
+const assertTopStreamSubset = (streamIds = [], topStreamIds = []) => {
+    if (topStreamIds.length === 0) return;
+    const allowed = new Set(streamIds);
+    const invalid = topStreamIds.filter((id) => !allowed.has(id));
+    if (invalid.length > 0) {
+        throw ApiError.unprocessable(
+            'Top streams must also be selected as university streams',
+            { invalidStreamIds: invalid }
         );
-        const universityId = uniResult.rows[0].id;
-
-        if (stream_ids && stream_ids.length > 0) { /* ... handle regular streams ... */ }
-        if (is_top_university && top_stream_ids && top_stream_ids.length > 0) {
-            const topStreamValues = top_stream_ids.map(streamId => `(${universityId}, ${streamId})`).join(',');
-            await client.query(`INSERT INTO top_university_streams (university_id, stream_id) VALUES ${topStreamValues}`);
-        }
-        await client.query('COMMIT');
-        res.status(201).json({ id: universityId });
-    } catch (err) {
-        await client.query('ROLLBACK');
-        console.error("Error creating university in database:", err);
-        if (err.code === '23505') return res.status(409).json({ message: "A university with this name already exists." });
-        res.status(500).json({ message: "Error creating university" });
-    } finally {
-        client.release();
     }
 };
 
+const replaceStreamLinks = async (client, universityId, streamIds = []) => {
+    await client.query('DELETE FROM university_streams WHERE university_id = $1', [universityId]);
+    await client.query('DELETE FROM top_university_streams WHERE university_id = $1', [universityId]);
+    const unique = [...new Set(streamIds)];
+    if (unique.length > 0) {
+        await client.query(
+            'INSERT INTO university_streams (university_id, stream_id) SELECT $1, unnest($2::int[]) ON CONFLICT DO NOTHING',
+            [universityId, unique]
+        );
+    }
+};
 
+const replaceTopStreamLinks = async (client, universityId, topStreamIds = []) => {
+    const unique = [...new Set(topStreamIds)];
+    if (unique.length === 0) return;
+    await client.query(
+        `INSERT INTO top_university_streams (university_id, stream_id)
+         SELECT $1, unnest($2::int[]) ON CONFLICT DO NOTHING`,
+        [universityId, unique]
+    );
+};
 
+const replaceOfferings = async (client, universityId, offerings) => {
+    await client.query('DELETE FROM university_course_offerings WHERE university_id = $1', [universityId]);
+    if (!offerings || offerings.length === 0) return;
 
-// export const getUniversityByIdAdmin = async (req, res) => {
-//     const { id } = req.params;
-//     try {
-//         const result = await pool.query('SELECT * FROM universities WHERE id = $1', [id]);
-//         if (result.rows.length === 0) {
-//             return res.status(404).json({ message: "University not found" });
-//         }
-//         res.json(result.rows[0]);
-//     } catch (err) {
-//         console.error(`Error fetching university with ID ${id}:`, err);
-//         res.status(500).json({ message: "Server error while fetching university details" });
-//     }
-// };
+    for (const offering of offerings) {
+        await client.query(
+            `INSERT INTO university_course_offerings
+                (university_id, course_id, fee_amount, fee_currency, fee_display, duration, eligibility, admission_year)
+             VALUES ($1, $2, $3, COALESCE($4, 'INR'), $5, $6, $7, $8)
+             ON CONFLICT (university_id, course_id) DO UPDATE SET
+                fee_amount = EXCLUDED.fee_amount,
+                fee_currency = EXCLUDED.fee_currency,
+                fee_display = EXCLUDED.fee_display,
+                duration = EXCLUDED.duration,
+                eligibility = EXCLUDED.eligibility,
+                admission_year = EXCLUDED.admission_year`,
+            [
+                universityId,
+                offering.course_id,
+                offering.fee_amount ?? null,
+                offering.fee_currency ?? null,
+                offering.fee_display ?? null,
+                offering.duration ?? null,
+                offering.eligibility ?? null,
+                offering.admission_year ?? null,
+            ]
+        );
+    }
+};
 
+export const getAllUniversitiesAdmin = asyncHandler(async (req, res) => {
+    const { page, limit, offset } = parsePagination(req.query);
 
-// Update an existing university (UPDATED LOGIC)
-// export const updateUniversity = async (req, res) => {
-//     const { id } = req.params;
-//     const {
-//         name, location, stream_id, rating, description, image_url,
-//         details = {},
-//         courses_and_fees = [],
-//         placements = {},
-//         facilities = []
-//     } = req.body;
+    const filters = [];
+    const params = [];
+    const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+    if (search) {
+        params.push(`%${search}%`);
+        filters.push(`(u.name ILIKE $${params.length} OR u.location ILIKE $${params.length})`);
+    }
+    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
 
-//     const slug = slugify(name);
+    params.push(limit, offset);
+    const rows = await pool.query(
+        `SELECT u.id, u.name, u.slug, u.location, u.city_slug, u.rating,
+                u.admission_open, u.admission_year, u.is_top_university, u.updated_at,
+                COALESCE(STRING_AGG(s.name, ', ' ORDER BY s.name) FILTER (WHERE s.id IS NOT NULL), '') AS stream_name
+         FROM universities u
+         LEFT JOIN university_streams us ON us.university_id = u.id
+         LEFT JOIN streams s ON s.id = us.stream_id
+         ${where}
+         GROUP BY u.id
+         ORDER BY u.name ASC, u.id ASC
+         LIMIT $${params.length - 1} OFFSET $${params.length}`,
+        params
+    );
 
-//     try {
-//         const result = await pool.query(
-//             `UPDATE universities SET name=$1, slug=$2, location=$3, stream_id=$4, rating=$5, description=$6, image_url=$7, details=$8, courses_and_fees=$9, placements=$10, facilities=$11
-//              WHERE id=$12 RETURNING *`,
-//             [
-//                 name, slug, location, stream_id, rating, description, image_url,
-//                 // THE FIX: Manually stringify all JSONB fields
-//                 JSON.stringify(details),
-//                 JSON.stringify(courses_and_fees),
-//                 JSON.stringify(placements),
-//                 facilities,
-//                 id
-//             ]
-//         );
-//         if(result.rows.length === 0) return res.status(404).json({ message: "University not found" });
-//         res.json(result.rows[0]);
-//     } catch (err) {
-//         console.error(`Error updating university with ID ${id}:`, err);
-//         if (err.code === '23505') {
-//             return res.status(409).json({ message: "A university with this name already exists." });
-//         }
-//         res.status(500).json({ message: "Error updating university", error: err.message });
-//     }
-// };
+    const total = await pool.query(`SELECT count(*)::int AS total FROM universities u ${where}`, params.slice(0, -2));
 
-// export const updateUniversity = async (req, res) => {
-//     const { id } = req.params;
-//     const { stream_ids = [], admission_open = false, admission_year, ...uniData } = req.body;
-//     const slug = slugify(uniData.name);
-//     const client = await pool.connect();
+    return res.json(paginated(rows.rows, { page, limit }, total.rows[0].total));
+});
 
-//     try {
-//         await client.query('BEGIN');
+export const getUniversityByIdAdmin = asyncHandler(async (req, res) => {
+    const id = parseId(req.params.id, 'University id');
 
-//         const result = await client.query(
-//             `UPDATE universities SET name=$1, slug=$2, location=$3, rating=$4, description=$5, image_url=$6, details=$7, courses_and_fees=$8, placements=$9, facilities=$10, admission_open=$11, admission_year=$12
-//              WHERE id=$13 RETURNING *`,
-//             [uniData.name, slug, uniData.location, uniData.rating, uniData.description, uniData.image_url, JSON.stringify(uniData.details), JSON.stringify(uniData.courses_and_fees), JSON.stringify(uniData.placements), uniData.facilities, admission_open, admission_year, id]
-//         );
-//         if (result.rows.length === 0) {
-//             await client.query('ROLLBACK');
-//             return res.status(404).json({ message: "University not found" });
-//         }
+    const universityResult = await pool.query('SELECT * FROM universities WHERE id = $1', [id]);
+    if (universityResult.rows.length === 0) throw ApiError.notFound('University not found');
+    const university = universityResult.rows[0];
 
-//         await client.query('DELETE FROM university_streams WHERE university_id = $1', [id]);
-//         if (stream_ids && stream_ids.length > 0) {
-//             const streamValues = stream_ids.map(streamId => `(${id}, ${streamId})`).join(',');
-//             await client.query(`INSERT INTO university_streams (university_id, stream_id) VALUES ${streamValues}`);
-//         }
+    const [streams, topStreams, offerings] = await Promise.all([
+        pool.query('SELECT stream_id FROM university_streams WHERE university_id = $1 ORDER BY stream_id', [id]),
+        pool.query('SELECT stream_id FROM top_university_streams WHERE university_id = $1 ORDER BY stream_id', [id]),
+        pool.query(
+            `SELECT o.id, o.course_id, o.fee_amount, o.fee_currency, o.fee_display, o.duration, o.eligibility, o.admission_year, c.name AS course_name
+             FROM university_course_offerings o
+             JOIN courses c ON c.id = o.course_id
+             WHERE o.university_id = $1
+             ORDER BY c.name ASC`,
+            [id]
+        ),
+    ]);
 
-//         await client.query('COMMIT');
-//         res.json(result.rows[0]);
-//     } catch (err) {
-//         await client.query('ROLLBACK');
-//         console.error(`Error updating university with ID ${id}:`, err);
-//         if (err.code === '23505') return res.status(409).json({ message: "A university with this name already exists." });
-//         res.status(500).json({ message: "Error updating university" });
-//     } finally {
-//         client.release();
-//     }
-// };
+    university.stream_ids = streams.rows.map((r) => r.stream_id);
+    university.top_stream_ids = topStreams.rows.map((r) => r.stream_id);
+    university.offerings = offerings.rows;
 
-export const updateUniversity = async (req, res) => {
-    const { id } = req.params;
-    const { stream_ids = [], is_top_university = false, top_stream_ids = [], ...uniData } = req.body;
-    const slug = slugify(uniData.name);
-    const client = await pool.connect();
+    return res.json(university);
+});
 
-    try {
-        await client.query('BEGIN');
+export const createUniversity = asyncHandler(async (req, res) => {
+    const data = req.validatedBody ?? req.body;
+    const streamIds = parseIdList(data.stream_ids);
+    const topStreamIds = data.is_top_university ? parseIdList(data.top_stream_ids) : [];
+    assertTopStreamSubset(streamIds, topStreamIds);
 
+    const slug = slugify(data.name);
+    if (!slug) throw ApiError.badRequest('University name must contain at least one alphanumeric character');
+
+    const university = await withTransaction(async (client) => {
         const result = await client.query(
-            `UPDATE universities SET name=$1, slug=$2, location=$3, rating=$4, description=$5, image_url=$6, details=$7, courses_and_fees=$8, placements=$9, facilities=$10, admission_open=$11, admission_year=$12, is_top_university=$13
-             WHERE id=$14 RETURNING *`,
-            [uniData.name, slug, uniData.location, uniData.rating, uniData.description, uniData.image_url, JSON.stringify(uniData.details), JSON.stringify(uniData.courses_and_fees), JSON.stringify(uniData.placements), uniData.facilities, uniData.admission_open, uniData.admission_year, is_top_university, id]
+            `INSERT INTO universities
+                (name, slug, location, rating, description, image_url, details, courses_and_fees,
+                 placements, facilities, admission_open, admission_year, is_top_university)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+             RETURNING *`,
+            [
+                data.name, slug, data.location, data.rating ?? null, data.description ?? null,
+                data.image_url ?? null, jsonb(data.details, {}), jsonb(data.courses_and_fees, []),
+                jsonb(data.placements, {}), data.facilities ?? [], Boolean(data.admission_open),
+                data.admission_year ?? null, Boolean(data.is_top_university),
+            ]
         );
-        if (result.rows.length === 0) {
-            await client.query('ROLLBACK');
-            return res.status(404).json({ message: "University not found" });
-        }
+        const created = result.rows[0];
 
-        // THE FIX: Correctly handle stream updates within a transaction
-        await client.query('DELETE FROM university_streams WHERE university_id = $1', [id]);
-        if (stream_ids && stream_ids.length > 0) {
-            const streamValues = stream_ids.map(streamId => `(${id}, ${streamId})`).join(',');
-            await client.query(`INSERT INTO university_streams (university_id, stream_id) VALUES ${streamValues}`);
-        }
+        await replaceStreamLinks(client, created.id, streamIds);
+        await replaceTopStreamLinks(client, created.id, topStreamIds);
+        await replaceOfferings(client, created.id, data.offerings);
 
-        await client.query('DELETE FROM top_university_streams WHERE university_id = $1', [id]);
-        if (is_top_university && top_stream_ids && top_stream_ids.length > 0) {
-            const topStreamValues = top_stream_ids.map(streamId => `(${id}, ${streamId})`).join(',');
-            await client.query(`INSERT INTO top_university_streams (university_id, stream_id) VALUES ${topStreamValues}`);
-        }
+        return created;
+    });
 
-        await client.query('COMMIT');
-        res.json(result.rows[0]);
-    } catch (err) {
-        await client.query('ROLLBACK');
-        console.error(`Error updating university with ID ${id}:`, err);
-        if (err.code === '23505') return res.status(409).json({ message: "A university with this name already exists." });
-        res.status(500).json({ message: "Error updating university" });
-    } finally {
-        client.release();
+    return res.status(201).json(university);
+});
+
+export const updateUniversity = asyncHandler(async (req, res) => {
+    const id = parseId(req.params.id, 'University id');
+    const data = req.validatedBody ?? req.body;
+    const streamIds = parseIdList(data.stream_ids);
+    const topStreamIds = data.is_top_university ? parseIdList(data.top_stream_ids) : [];
+    assertTopStreamSubset(streamIds, topStreamIds);
+
+    const slug = slugify(data.name);
+    if (!slug) throw ApiError.badRequest('University name must contain at least one alphanumeric character');
+
+    const university = await withTransaction(async (client) => {
+        const result = await client.query(
+            `UPDATE universities SET
+                name=$1, slug=$2, location=$3, rating=$4, description=$5, image_url=$6,
+                details=$7, courses_and_fees=$8, placements=$9, facilities=$10,
+                admission_open=$11, admission_year=$12, is_top_university=$13, updated_at=now()
+             WHERE id=$14
+             RETURNING *`,
+            [
+                data.name, slug, data.location, data.rating ?? null, data.description ?? null,
+                data.image_url ?? null, jsonb(data.details, {}), jsonb(data.courses_and_fees, []),
+                jsonb(data.placements, {}), data.facilities ?? [], Boolean(data.admission_open),
+                data.admission_year ?? null, Boolean(data.is_top_university), id,
+            ]
+        );
+        if (result.rows.length === 0) throw ApiError.notFound('University not found');
+        const updated = result.rows[0];
+
+        await replaceStreamLinks(client, id, streamIds);
+        await replaceTopStreamLinks(client, id, topStreamIds);
+        if (data.offerings !== undefined) await replaceOfferings(client, id, data.offerings);
+
+        return updated;
+    });
+
+    return res.json(university);
+});
+
+export const deleteUniversity = asyncHandler(async (req, res) => {
+    const id = parseId(req.params.id, 'University id');
+
+    const [applications] = await Promise.all([
+        pool.query('SELECT count(*)::int AS count FROM applications WHERE university_id = $1', [id]),
+    ]);
+    if (applications.rows[0].count > 0) {
+        throw ApiError.conflict(
+            `Cannot delete this university: ${applications.rows[0].count} application(s) reference it. Close admissions instead.`
+        );
     }
-};
 
+    const result = await pool.query('DELETE FROM universities WHERE id = $1', [id]);
+    if (result.rowCount === 0) throw ApiError.notFound('University not found');
 
-
-// Delete a university
-export const deleteUniversity = async (req, res) => {
-    const { id } = req.params;
-    try {
-        const result = await pool.query('DELETE FROM universities WHERE id=$1', [id]);
-        if (result.rowCount === 0) return res.status(404).json({ message: "University not found" });
-        res.status(204).send(); // No Content
-    } catch (err) {
-        console.error(`Error deleting university with ID ${id}:`, err);
-        res.status(500).json({ message: "Error deleting university" });
-    }
-};
+    return res.status(204).send();
+});

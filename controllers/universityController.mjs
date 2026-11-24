@@ -1,148 +1,133 @@
-// import pool from '../config/db.mjs';
-
-// // Public controller for fetching university data
-// export const getAllUniversities = async (req, res) => {
-//     try {
-//         const result = await pool.query(`
-//             SELECT u.id, u.name, u.slug, u.location, u.image_url, u.rating, s.name as stream
-//             FROM universities u
-//             LEFT JOIN streams s ON u.stream_id = s.id
-//             ORDER BY u.rating DESC
-//         `);
-//         res.json(result.rows);
-//     } catch (err) {
-//         res.status(500).json({ message: 'Error fetching universities' });
-//     }
-// };
-
-// export const getUniversityBySlug = async (req, res) => {
-//      try {
-//         const result = await pool.query('SELECT * FROM universities WHERE slug = $1', [req.params.slug]);
-//         if(result.rows.length === 0) return res.status(404).json({ message: 'University not found' });
-//         res.json(result.rows[0]);
-//     } catch (err) {
-//         res.status(500).json({ message: 'Error fetching university details' });
-//     }
-// };
-
-
 import pool from '../config/db.mjs';
+import { ApiError } from '../utils/ApiError.mjs';
+import { asyncHandler } from '../utils/asyncHandler.mjs';
+import { parsePagination } from '../utils/http.mjs';
 
-// Public controller for fetching university data
-// export const getAllUniversities = async (req, res) => {
-//     try {
-//         const result = await pool.query(`
-//             SELECT u.*, array_agg(s.name) as streams
-//             FROM universities u
-//             LEFT JOIN university_streams us ON u.id = us.university_id
-//             LEFT JOIN streams s ON us.stream_id = s.id
-//             GROUP BY u.id
-//             ORDER BY u.rating DESC
-//         `);
-//         res.json(result.rows);
-//     } catch (err) {
-//         res.status(500).json({ message: 'Error fetching universities' });
-//     }
-// };
+const UNIVERSITY_COLUMNS = `
+    u.id, u.name, u.slug, u.location, u.city_slug, u.rating, u.description, u.image_url,
+    u.details, u.courses_and_fees, u.placements, u.facilities,
+    u.admission_open, u.admission_year, u.is_top_university, u.created_at
+`;
 
-export const getAllUniversities = async (req, res) => {
-    const { filter } = req.query;
+const STREAM_AGGREGATES = `
+    COALESCE(array_agg(DISTINCT s.name ORDER BY s.name) FILTER (WHERE s.id IS NOT NULL), '{}') AS streams,
+    COALESCE(array_agg(DISTINCT s.slug ORDER BY s.slug) FILTER (WHERE s.id IS NOT NULL), '{}') AS stream_slugs
+`;
 
-    try {
-        let result;
-        if (filter === 'top') {
-            // This query is a bit complex: it finds the highest rated university within each stream
-            // and returns a distinct list of those universities.
-            result = await pool.query(`
-                WITH RankedUniversities AS (
-                    SELECT u.*, s.name as stream_name, ROW_NUMBER() OVER(PARTITION BY s.id ORDER BY u.rating DESC) as rn
-                    FROM universities u
-                    JOIN university_streams us ON u.id = us.university_id
-                    JOIN streams s ON us.stream_id = s.id
-                    WHERE u.is_top_university = TRUE AND us.stream_id IN (SELECT stream_id FROM top_university_streams WHERE university_id = u.id)
-                )
-                SELECT * FROM RankedUniversities WHERE rn = 1
-            `);
-        } else {
-            result = await pool.query(`
-                SELECT u.*, array_agg(s.name) as streams
-                FROM universities u
-                LEFT JOIN university_streams us ON u.id = us.university_id
-                LEFT JOIN streams s ON us.stream_id = s.id
-                GROUP BY u.id
-                ORDER BY u.rating DESC
-            `);
-        }
-        res.json(result.rows);
-    } catch (err) {
-        console.error("Error in getAllUniversities:", err);
-        res.status(500).json({ message: 'Error fetching universities' });
+const DEFAULT_LIMIT = 100;
+
+export const getAllUniversities = asyncHandler(async (req, res) => {
+    const query = req.validatedQuery ?? req.query;
+    const { page, limit, offset } = parsePagination({
+        page: query.page,
+        limit: Math.min(Number(query.limit ?? DEFAULT_LIMIT), DEFAULT_LIMIT),
+    });
+
+    const isTop = query.filter === 'top';
+    const filters = [];
+    const params = [];
+
+    if (isTop) filters.push('u.is_top_university = TRUE');
+
+    if (query.city) {
+        params.push(query.city.toLowerCase());
+        filters.push(`u.city_slug = $${params.length}`);
     }
-};
 
-export const getUniversityBySlug = async (req, res) => {
-     try {
-        const result = await pool.query(`
-            SELECT u.*, array_agg(s.name) as streams
+    if (query.stream) {
+        params.push(query.stream.toLowerCase());
+        filters.push(
+            `EXISTS (SELECT 1 FROM university_streams us2
+                     JOIN streams s2 ON s2.id = us2.stream_id
+                     WHERE us2.university_id = u.id AND s2.slug = $${params.length})`
+        );
+    }
+
+    if (query.search) {
+        params.push(`%${query.search}%`);
+        filters.push(`(u.name ILIKE $${params.length} OR u.location ILIKE $${params.length})`);
+    }
+
+    if (query.admission_open === 'true') filters.push('u.admission_open = TRUE');
+
+    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+
+    params.push(limit, offset);
+    const result = await pool.query(
+        `SELECT ${UNIVERSITY_COLUMNS}, ${STREAM_AGGREGATES}
+         FROM universities u
+         LEFT JOIN university_streams us ON us.university_id = u.id
+         LEFT JOIN streams s ON s.id = us.stream_id
+         ${where}
+         GROUP BY u.id
+         ORDER BY u.rating DESC NULLS LAST, u.name ASC, u.id ASC
+         LIMIT $${params.length - 1} OFFSET $${params.length}`,
+        params
+    );
+
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    return res.json(result.rows);
+});
+
+export const getUniversityBySlug = asyncHandler(async (req, res) => {
+    const slug = (req.params.slug ?? '').trim();
+    if (!slug) throw ApiError.badRequest('Invalid university slug');
+
+    const result = await pool.query(
+        `SELECT ${UNIVERSITY_COLUMNS}, ${STREAM_AGGREGATES},
+                COALESCE(
+                    json_agg(
+                        json_build_object(
+                            'id', o.id, 'course_id', o.course_id, 'course_name', c.name, 'course_slug', c.slug,
+                            'fee_amount', o.fee_amount, 'fee_currency', o.fee_currency, 'fee_display', o.fee_display,
+                            'duration', o.duration, 'eligibility', o.eligibility, 'admission_year', o.admission_year
+                        ) ORDER BY c.name
+                    ) FILTER (WHERE o.id IS NOT NULL), '[]'
+                ) AS offerings
+         FROM universities u
+         LEFT JOIN university_streams us ON us.university_id = u.id
+         LEFT JOIN streams s ON s.id = us.stream_id
+         LEFT JOIN university_course_offerings o ON o.university_id = u.id
+         LEFT JOIN courses c ON c.id = o.course_id
+         WHERE u.slug = $1
+         GROUP BY u.id`,
+        [slug]
+    );
+
+    if (result.rows.length === 0) throw ApiError.notFound('University not found');
+
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    return res.json(result.rows[0]);
+});
+
+export const getTopUniversitiesByStream = asyncHandler(async (_req, res) => {
+    const result = await pool.query(`
+        WITH ranked AS (
+            SELECT u.id, u.name, u.slug, u.location, u.city_slug, u.image_url, u.rating,
+                   u.admission_open, u.admission_year,
+                   s.id AS stream_id, s.name AS stream_name, s.slug AS stream_slug,
+                   ROW_NUMBER() OVER (PARTITION BY s.id ORDER BY u.rating DESC NULLS LAST, u.name ASC, u.id ASC) AS rank
             FROM universities u
-            LEFT JOIN university_streams us ON u.id = us.university_id
-            LEFT JOIN streams s ON us.stream_id = s.id
-            WHERE u.slug = $1
-            GROUP BY u.id
-        `, [req.params.slug]);
+            JOIN top_university_streams tus ON tus.university_id = u.id
+            JOIN streams s ON s.id = tus.stream_id
+            WHERE u.is_top_university = TRUE
+        )
+        SELECT * FROM ranked WHERE rank <= 3 ORDER BY stream_name ASC, rank ASC
+    `);
 
-        if(result.rows.length === 0) return res.status(404).json({ message: 'University not found' });
-        res.json(result.rows[0]);
-    } catch (err) {
-        res.status(500).json({ message: 'Error fetching university details' });
+    const grouped = new Map();
+    for (const row of result.rows) {
+        if (!grouped.has(row.stream_id)) {
+            grouped.set(row.stream_id, {
+                stream_id: row.stream_id,
+                stream_name: row.stream_name,
+                stream_slug: row.stream_slug,
+                universities: [],
+            });
+        }
+        grouped.get(row.stream_id).universities.push(row);
     }
-};
 
-
-export const getTopUniversitiesByStream = async (req, res) => {
-    try {
-        // THE FIX: This query is now much more precise.
-        // It specifically joins with `top_university_streams` to only get the
-        // university/stream combinations that were explicitly marked as "Top".
-        const result = await pool.query(`
-            WITH RankedUniversities AS (
-                SELECT 
-                    u.id, u.name, u.slug, u.location, u.image_url, u.rating, u.admission_open, u.admission_year,
-                    s.id as stream_id, 
-                    s.name as stream_name, 
-                    s.slug as stream_slug,
-                    ROW_NUMBER() OVER(PARTITION BY s.id ORDER BY u.rating DESC, u.name) as rank
-                FROM 
-                    universities u
-                -- This join ensures we only consider streams marked as "Top" for this university
-                JOIN 
-                    top_university_streams tus ON u.id = tus.university_id
-                JOIN 
-                    streams s ON tus.stream_id = s.id
-                WHERE 
-                    u.is_top_university = TRUE
-            )
-            SELECT * FROM RankedUniversities WHERE rank <= 3
-        `);
-
-        // Process the flat list into a grouped structure for the frontend
-        const groupedByStream = result.rows.reduce((acc, uni) => {
-            if (!acc[uni.stream_id]) {
-                acc[uni.stream_id] = {
-                    stream_id: uni.stream_id,
-                    stream_name: uni.stream_name,
-                    stream_slug: uni.stream_slug,
-                    universities: []
-                };
-            }
-            acc[uni.stream_id].universities.push(uni);
-            return acc;
-        }, {});
-
-        res.json(Object.values(groupedByStream));
-    } catch (err) {
-        console.error("Error fetching top universities by stream:", err);
-        res.status(500).json({ message: 'Error fetching top universities' });
-    }
-};
-
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    return res.json([...grouped.values()]);
+});

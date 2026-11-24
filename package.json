@@ -1,12 +1,18 @@
 {
   "name": "performic-backend",
   "version": "1.0.0",
-  "description": "API for performic platform",
+  "description": "API for the PerFormic platform",
   "main": "server.mjs",
   "type": "module",
+  "engines": {
+    "node": ">=20.11.0"
+  },
   "scripts": {
     "start": "node server.mjs",
-    "dev": "nodemon server.mjs"
+    "dev": "nodemon server.mjs",
+    "migrate": "node scripts/migrate.mjs",
+    "test": "node --test --test-concurrency=1 --import ./tests/setup.mjs \"tests/*.test.mjs\"",
+    "test:watch": "node --test --watch --test-concurrency=1 --import ./tests/setup.mjs \"tests/*.test.mjs\""
   },
   "keywords": [],
   "author": "",
@@ -17,12 +23,21 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-rate-limit": "^8.7.5",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
-    "pg": "^8.11.5"
+    "pg": "^8.11.5",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.1.0",
+    "supertest": "^7.3.2"
+  },
+  "overrides": {
+    "nodemon": {
+      "minimatch": "^11.0.9"
+    }
   }
 }
