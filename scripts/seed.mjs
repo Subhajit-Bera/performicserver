@@ -81,6 +81,22 @@ export const runSeed = async () => {
                 description: 'Recognized worldwide as a premier center of technical education and research. Set on the banks of Powai Lake.',
                 is_top: true,
                 streams: ['engineering', 'science'],
+                details: {
+                    established_year: '1958',
+                    university_type: 'Public / Autonomous',
+                    accredited_by: 'NAAC A++ / NIRF #3',
+                    campus_size_acres: '550'
+                },
+                placements: {
+                    highest_package: 'Rs 1.68 Crore / year',
+                    average_package: 'Rs 21.8 Lakhs / year',
+                    top_recruiters: ['Google', 'Microsoft', 'Qualcomm', 'Apple', 'Goldman Sachs']
+                },
+                facilities: ['Central Library', 'Hostels & Dining', 'Olympic Sports Complex', 'High-Speed Wi-Fi', 'Robotics Lab'],
+                courses_and_fees: [
+                    { course: 'B.Tech Computer Science & Engineering', duration: '4 Years', fees: 'Rs 2.2 Lakhs / year' },
+                    { course: 'B.Tech Electronics & Communication', duration: '4 Years', fees: 'Rs 2.2 Lakhs / year' }
+                ],
                 courses: [
                     { slug: 'btech-cse', fee: 220000, fee_display: 'Rs 2.2 Lakhs / year', duration: '4 Years', eligibility: 'JEE Advanced top 200 rank' },
                     { slug: 'btech-ece', fee: 220000, fee_display: 'Rs 2.2 Lakhs / year', duration: '4 Years', eligibility: 'JEE Advanced top 600 rank' },
@@ -95,6 +111,22 @@ export const runSeed = async () => {
                 description: 'All-India Institute for higher education deemed to be a university by UGC. Known for zero-attendance policy and Practice School.',
                 is_top: true,
                 streams: ['engineering', 'science'],
+                details: {
+                    established_year: '1964',
+                    university_type: 'Private Deemed University',
+                    accredited_by: 'NAAC A Grade',
+                    campus_size_acres: '328'
+                },
+                placements: {
+                    highest_package: 'Rs 60.75 Lakhs / year',
+                    average_package: 'Rs 18.5 Lakhs / year',
+                    top_recruiters: ['Amazon', 'Microsoft', 'Uber', 'Cisco', 'Texas Instruments']
+                },
+                facilities: ['Innovation Lab', 'Student Activity Center', 'High-Tech Classrooms', 'Auditorium', 'Sports Grounds'],
+                courses_and_fees: [
+                    { course: 'B.Tech Computer Science & Engineering', duration: '4 Years', fees: 'Rs 5.2 Lakhs / year' },
+                    { course: 'B.Sc Data Science & AI', duration: '3 Years', fees: 'Rs 4.2 Lakhs / year' }
+                ],
                 courses: [
                     { slug: 'btech-cse', fee: 520000, fee_display: 'Rs 5.2 Lakhs / year', duration: '4 Years', eligibility: 'BITSAT score 320+' },
                     { slug: 'bsc-data-science', fee: 420000, fee_display: 'Rs 4.2 Lakhs / year', duration: '3 Years', eligibility: 'Class 12 80%+ PCM' },
@@ -109,6 +141,21 @@ export const runSeed = async () => {
                 description: 'The foremost management institute in India, consistently ranked amongst the top business schools globally.',
                 is_top: true,
                 streams: ['management'],
+                details: {
+                    established_year: '1961',
+                    university_type: 'Autonomous Business School',
+                    accredited_by: 'EQUIS Accredited',
+                    campus_size_acres: '106'
+                },
+                placements: {
+                    highest_package: 'Rs 1.15 Crore / year',
+                    average_package: 'Rs 34.3 Lakhs / year',
+                    top_recruiters: ['McKinsey & Co', 'BCG', 'Bain & Co', 'Morgan Stanley', 'Goldman Sachs']
+                },
+                facilities: ['Louis Kahn Plaza', 'Vikram Sarabhai Library', 'Executive Residence', 'Syndicate Rooms'],
+                courses_and_fees: [
+                    { course: 'Master of Business Administration (MBA)', duration: '2 Years', fees: 'Rs 25 Lakhs' }
+                ],
                 courses: [
                     { slug: 'mba-general', fee: 1250000, fee_display: 'Rs 25 Lakhs (2-Year Program)', duration: '2 Years', eligibility: 'CAT 99+ percentile and interview' },
                 ],
@@ -122,6 +169,21 @@ export const runSeed = async () => {
                 description: 'Apex healthcare institute of India, established by an Act of Parliament with state-of-the-art super-specialty research wings.',
                 is_top: true,
                 streams: ['medical'],
+                details: {
+                    established_year: '1956',
+                    university_type: 'Autonomous Medical Institute',
+                    accredited_by: 'MCI / NMC Recognized',
+                    campus_size_acres: '115'
+                },
+                placements: {
+                    highest_package: 'Central Residency Pay Scale',
+                    average_package: 'Rs 18.0 Lakhs / year',
+                    top_recruiters: ['Apollo Hospitals', 'Fortis Healthcare', 'Max Healthcare', 'Medanta', 'AIIMS Residency']
+                },
+                facilities: ['Super Specialty Hospital', 'Digital Cadaver Lab', 'Trauma Center', 'Medical Research Library'],
+                courses_and_fees: [
+                    { course: 'Bachelor of Medicine, Bachelor of Surgery (MBBS)', duration: '5.5 Years', fees: 'Rs 1,628 (Subsidized)' }
+                ],
                 courses: [
                     { slug: 'mbbs', fee: 1628, fee_display: 'Subsidized Central Merit', duration: '5.5 Years', eligibility: 'NEET UG top 50 AIR rank' },
                 ],
@@ -135,6 +197,21 @@ export const runSeed = async () => {
                 description: 'Institute of National Importance internationally renowned for education and research in industrial, textile, and communication design.',
                 is_top: true,
                 streams: ['design-architecture'],
+                details: {
+                    established_year: '1961',
+                    university_type: 'Institute of National Importance',
+                    accredited_by: 'DPIIT, Ministry of Commerce',
+                    campus_size_acres: '45'
+                },
+                placements: {
+                    highest_package: 'Rs 30.0 Lakhs / year',
+                    average_package: 'Rs 12.5 Lakhs / year',
+                    top_recruiters: ['Tata Motors', 'Samsung Design', 'Frog Design', 'Adobe', 'Wipro Digital']
+                },
+                facilities: ['Design Prototyping Labs', 'Ergonomics Studio', 'Printing & Textile Workshops', 'Knowledge Resource Center'],
+                courses_and_fees: [
+                    { course: 'B.Des Industrial & Product Design', duration: '4 Years', fees: 'Rs 3.5 Lakhs / year' }
+                ],
                 courses: [
                     { slug: 'bdes-design', fee: 350000, fee_display: 'Rs 3.5 Lakhs / year', duration: '4 Years', eligibility: 'NID DAT Prelims & Mains' },
                 ],
@@ -145,8 +222,9 @@ export const runSeed = async () => {
             const uniRes = await client.query(
                 `INSERT INTO universities (
                     name, slug, location, rating, image_url, description,
-                    admission_open, admission_year, is_top_university
-                 ) VALUES ($1, $2, $3, $4, $5, $6, TRUE, 2026, $7)
+                    admission_open, admission_year, is_top_university,
+                    details, placements, facilities, courses_and_fees
+                 ) VALUES ($1, $2, $3, $4, $5, $6, TRUE, 2026, $7, $8, $9, $10, $11)
                  ON CONFLICT (slug) DO UPDATE SET
                     name = EXCLUDED.name,
                     location = EXCLUDED.location,
@@ -154,9 +232,25 @@ export const runSeed = async () => {
                     image_url = EXCLUDED.image_url,
                     description = EXCLUDED.description,
                     admission_open = TRUE,
-                    is_top_university = EXCLUDED.is_top_university
+                    is_top_university = EXCLUDED.is_top_university,
+                    details = EXCLUDED.details,
+                    placements = EXCLUDED.placements,
+                    facilities = EXCLUDED.facilities,
+                    courses_and_fees = EXCLUDED.courses_and_fees
                  RETURNING id`,
-                [u.name, u.slug, u.location, u.rating, u.image_url, u.description, u.is_top]
+                [
+                    u.name,
+                    u.slug,
+                    u.location,
+                    u.rating,
+                    u.image_url,
+                    u.description,
+                    u.is_top,
+                    JSON.stringify(u.details),
+                    JSON.stringify(u.placements),
+                    u.facilities,
+                    JSON.stringify(u.courses_and_fees)
+                ]
             );
             const universityId = uniRes.rows[0].id;
 
