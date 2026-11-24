@@ -8,10 +8,11 @@ const { Pool } = pg;
 // when the provider uses a private CA; otherwise the system trust store is used.
 const buildSslOptions = () => {
     if (!isProduction) return false;
+    const rejectUnauthorized = config.DB_SSL_REJECT_UNAUTHORIZED ?? true;
     if (config.DB_SSL_CA_FILE) {
-        return { rejectUnauthorized: true, ca: fs.readFileSync(config.DB_SSL_CA_FILE) };
+        return { rejectUnauthorized, ca: fs.readFileSync(config.DB_SSL_CA_FILE) };
     }
-    return { rejectUnauthorized: true };
+    return { rejectUnauthorized };
 };
 
 const pool = new Pool({

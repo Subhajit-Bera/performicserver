@@ -64,6 +64,22 @@ export const runMigrations = async () => {
     }
 };
 
+export const pendingMigrations = async () => {
+    const client = await pool.connect();
+    try {
+        const registry = await client.query(
+            `SELECT 1 FROM information_schema.tables
+              WHERE table_schema = 'public' AND table_name = 'schema_migrations'`
+        );
+        const migrations = await readMigrations();
+        if (registry.rowCount === 0) return migrations;
+        const done = await appliedVersions(client);
+        return migrations.filter((migration) => !done.has(migration.version));
+    } finally {
+        client.release();
+    }
+};
+
 const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === path.join(__dirname, 'migrate.mjs');
 
 if (isDirectRun) {

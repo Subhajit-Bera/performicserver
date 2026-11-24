@@ -55,7 +55,11 @@ app.use(
         origin(origin, callback) {
             // Same-origin/server-to-server requests have no Origin header.
             if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-            return callback(new Error(`Origin ${origin} is not allowed by CORS`));
+            // Allow Vercel preview and production deployments automatically
+            if (origin.endsWith('.vercel.app') || origin.endsWith('.onrender.com')) {
+                return callback(null, true);
+            }
+            return callback(null, false);
         },
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -74,9 +78,12 @@ initializePassport(passport);
 
 app.use('/api', apiLimiter);
 
-app.get('/health', (_req, res) => {
+const healthHandler = (_req, res) => {
     res.json({ status: 'ok', uptimeSeconds: Math.round(process.uptime()), env: config.NODE_ENV });
-});
+};
+
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);

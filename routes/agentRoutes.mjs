@@ -6,7 +6,8 @@ import { validate } from '../utils/validate.mjs';
 import { z } from 'zod';
 
 const searchQuerySchema = z.object({
-    q: z.string().trim().min(1).max(120),
+    name: z.string().trim().min(2, 'Name must be at least 2 characters').max(120),
+    contact: z.string().trim().min(3, 'Email or phone number is required').max(120),
 });
 
 const referBodySchema = z.preprocess(

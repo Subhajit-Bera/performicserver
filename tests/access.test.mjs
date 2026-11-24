@@ -119,6 +119,31 @@ describe('authorization and admin invariants', () => {
             .send({ user_id: fresh.id });        assert.equal(second.status, 409);
     });
 
+    test('agents can search by name plus contact, the shape the referral UI sends', async () => {
+        const prospect = await seedUser({ email: 'findme@performic.test', fullName: 'Findable Prospect' });
+
+        const byEmail = await request(app)
+            .get('/api/agent/search-user')
+            .query({ name: 'findable', contact: 'findme@performic.test' })
+            .set('Authorization', `Bearer ${agentToken}`);
+        assert.equal(byEmail.status, 200);
+        assert.ok(Array.isArray(byEmail.body));
+        assert.ok(byEmail.body.some((row) => row.id === prospect.id));
+
+        const byPhone = await request(app)
+            .get('/api/agent/search-user')
+            .query({ name: 'Findable', contact: '9876543210' })
+            .set('Authorization', `Bearer ${agentToken}`);
+        assert.equal(byPhone.status, 200);
+        assert.ok(byPhone.body.some((row) => row.id === prospect.id));
+
+        const tooShort = await request(app)
+            .get('/api/agent/search-user')
+            .query({ name: 'f', contact: 'findme@performic.test' })
+            .set('Authorization', `Bearer ${agentToken}`);
+        assert.equal(tooShort.status, 400);
+    });
+
     test('concurrent referrals resolve to a single winner', async () => {
         const target = await seedUser({ email: 'race@performic.test', fullName: 'Race Target' });
         const otherAgent = await seedUser({ email: 'agent2@performic.test', role: 'agent', fullName: 'Agent Two' });
